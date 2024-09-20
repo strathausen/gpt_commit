@@ -232,13 +232,3 @@ If you encounter any issues or have questions, please open an [issue](https://gi
 - **OpenAI API Documentation**: [https://platform.openai.com/docs/api-reference](https://platform.openai.com/docs/api-reference)
 - **jq Manual**: [https://stedolan.github.io/jq/manual/](https://stedolan.github.io/jq/manual/)
 
----
-
-## 🎉 Acknowledgments
-
-- Inspired by the need to streamline Git workflows and write better commit messages effortlessly.
-- Thanks to the OpenAI community for their continuous support and innovation.
-
----
-
-*Note: Replace `strathausen` with your actual GitHub username in the repository URLs.*

@@ -1,15 +1,28 @@
 #!/bin/bash
 
-# Load the OpenAI API key from environment variable
+# Exit immediately if a command exits with a non-zero status
+set -e
 
-# Check for staged changes
-if ! git diff --cached --quiet; then
+# Check if OpenAI API key is set
+if [ -z "$OPENAI_API_KEY" ]; then
+  echo "Error: OPENAI_API_KEY environment variable is not set."
+  echo "Please export your OpenAI API key as OPENAI_API_KEY."
+  exit 1
+fi
+
+# Function to generate the commit message using OpenAI API
+generate_message() {
   # Get the staged git diff
   diff=$(git diff --cached)
-  current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+  # Check if the diff is empty
+  if [ -z "$diff" ]; then
+    echo "No differences found in staged changes."
+    exit 1
+  fi
 
   # Prepare the prompt
-  prompt="Generate a concise and descriptive Git commit message based on this diff on branch $current_branch:\n\n$diff"
+  prompt="Generate a concise and descriptive Git commit message based on this diff:\n\n$diff"
 
   # Construct the JSON payload using jq for proper encoding
   json_payload=$(jq -n \
@@ -25,34 +38,74 @@ if ! git diff --cached --quiet; then
       temperature: $temperature
     }')
 
-
   # Call the OpenAI API
   response=$(curl -s https://api.openai.com/v1/chat/completions \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer "$OPENAI_API_KEY"" \
     -d "$json_payload")
 
-  # Extract the generated message
-  message=$(echo "$response" | jq -r '.choices[0].message.content' | tr -d '`' | sed 's/^\n*//')
+  # Check for API errors
+  if echo "$response" | jq -e '.error' >/dev/null; then
+    error_message=$(echo "$response" | jq -r '.error.message')
+    echo "API Error: $error_message"
+    exit 1
+  fi
+
+  # Extract the generated message, remove backticks and leading whitespace
+  message=$(echo "$response" | jq -r '.choices[0].message.content' | tr -d '\`' | sed 's/^[[:space:]]*//')
 
   # Check if the message is empty or "null"
   if [ -z "$message" ] || [ "$message" = "null" ]; then
     echo "Failed to generate commit message."
-    echo $response
     exit 1
   fi
+}
 
-  echo "Generated commit message:"
-  echo "\"$message\""
+# Check for staged changes
+if ! git diff --cached --quiet; then
+  # Initial message generation
+  generate_message
 
-  # Confirm with the user
-  read -p "Use this commit message? (Y/n): " REPLY
-
-  if [[ $REPLY =~ ^[Nn]$ ]]; then
-    echo "Commit aborted."
-  else
-    git commit -m "$message"
-  fi
+  # Loop for user options
+  while true; do
+    echo "Generated commit message:"
+    echo "\"$message\""
+    echo
+    echo "Options:"
+    echo "  (y) Accept and commit"
+    echo "  (e) Edit message"
+    echo "  (r) Regenerate message"
+    echo "  (q) Abort"
+    read -n1 -p "Choose an option [y/e/r/q]: " REPLY
+    echo
+    case "$REPLY" in
+      y|Y)
+        git commit -m "$message"
+        break
+        ;;
+      e|E)
+        # Use a temporary file to edit the message
+        tmpfile=$(mktemp)
+        echo "$message" > "$tmpfile"
+        ${EDITOR:-nano} "$tmpfile"
+        message=$(cat "$tmpfile")
+        rm "$tmpfile"
+        ;;
+      r|R)
+        # Regenerate the message
+        echo "Regenerating commit message..."
+        generate_message
+        ;;
+      q|Q|n|N)
+        echo "Commit aborted."
+        exit 0
+        ;;
+      *)
+        echo "Invalid option. Please choose y, e, r, or q."
+        ;;
+    esac
+  done
 else
   echo "No staged changes found. Please stage your changes before committing."
+  exit 1
 fi
