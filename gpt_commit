@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Load the OpenAI API key from environment variable
+
+# Check for staged changes
+if ! git diff --cached --quiet; then
+  # Get the staged git diff
+  diff=$(git diff --cached)
+  current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+  # Prepare the prompt
+  prompt="Generate a concise and descriptive Git commit message based on this diff on branch $current_branch:\n\n$diff"
+
+  # Construct the JSON payload using jq for proper encoding
+  json_payload=$(jq -n \
+    --arg model "gpt-4o" \
+    --arg role "user" \
+    --arg content "$prompt" \
+    --argjson max_tokens 60 \
+    --argjson temperature 0.7 \
+    '{
+      model: $model,
+      messages: [{role: $role, content: $content}],
+      max_tokens: $max_tokens,
+      temperature: $temperature
+    }')
+
+
+  # Call the OpenAI API
+  response=$(curl -s https://api.openai.com/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer "$OPENAI_API_KEY"" \
+    -d "$json_payload")
+
+  # Extract the generated message
+  message=$(echo "$response" | jq -r '.choices[0].message.content' | tr -d '`' | sed 's/^\n*//')
+
+  # Check if the message is empty or "null"
+  if [ -z "$message" ] || [ "$message" = "null" ]; then
+    echo "Failed to generate commit message."
+    echo $response
+    exit 1
+  fi
+
+  echo "Generated commit message:"
+  echo "\"$message\""
+
+  # Confirm with the user
+  read -p "Use this commit message? (Y/n): " REPLY
+
+  if [[ $REPLY =~ ^[Nn]$ ]]; then
+    echo "Commit aborted."
+  else
+    git commit -m "$message"
+  fi
+else
+  echo "No staged changes found. Please stage your changes before committing."
+fi
