@@ -72,14 +72,14 @@ if ! git diff --cached --quiet; then
     echo "\"$message\""
     echo
     echo "Options:"
-    echo "  (y) Accept and commit"
+    echo "  (Y) Accept and commit"
     echo "  (e) Edit message"
     echo "  (r) Regenerate message"
     echo "  (q) Abort"
-    read -n1 -p "Choose an option [y/e/r/q]: " REPLY
+    read -n1 -p "Choose an option [Y/e/r/q]: " REPLY
     echo
     case "$REPLY" in
-      y|Y)
+      y|Y|"")
         git commit -m "$message"
         break
         ;;
