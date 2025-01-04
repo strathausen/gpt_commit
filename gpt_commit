@@ -1,4 +1,5 @@
 #!/bin/bash
+# TODO after editing, accept automatically
 
 # Exit immediately if a command exits with a non-zero status
 set -e
@@ -29,7 +30,7 @@ generate_message() {
     --arg model "gpt-4o" \
     --arg role "user" \
     --arg content "$prompt" \
-    --argjson max_tokens 60 \
+    --argjson max_tokens 80 \
     --argjson temperature 0.7 \
     '{
       model: $model,
